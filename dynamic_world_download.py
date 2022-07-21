@@ -62,14 +62,15 @@ def acquiring(bounds, idx='', band='built', year='2018', stats='median'):
 bands = ['water', 'trees', 'grass', 'flooded_vegetation', 'crops', 'shrub_and_scrub', 'built', 'bare', 'snow_and_ice']
 band = ''
 year = '2018'
-submission_mode = 'all'
+submission_mode = ''
 
 while not(band in bands):
     band = input('Select one band (see spreadsheet): ')
     
 year = input('Select year (2016-2021): ')
 
-submission_mode = input('Submission mode (all, part): ')
+while not(submission_mode in ['all', 'part', 'test']):
+    submission_mode = input('Submission mode (all, part, test): ')
 
 #Authentication and initialisation of google earth engine python API
 #Sign in to google account and give essential authorisations
@@ -78,7 +79,12 @@ ee.Initialize()
 
 tiles = pd.read_csv('globalTile100.csv')
 tasks = []
-for i in range(len(tiles)):
+if (submission_mode == 'test'):
+    nrow = 1
+else:
+    nrow = len(tiles)
+    
+for i in range(nrow):
     if tiles.area_.values[i] < 1e8:
         print('Unsignificant tile', tiles.iloc[i].ID)
         continue
