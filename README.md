@@ -5,6 +5,8 @@ Dynamic World is a 10m near-real-time (NRT) Land Use/Land Cover (LULC) dataset t
 
 `dynamic_world_download.py` is a python script for exporting Dynamic World data globally, tile-by-tile. It reads `globalTile100.csv` that contains the coordinate of 300+ tiles covering lands. Each tile is approximately 10x10 degree square.
 
+![global tile](globalTile100.png)
+
 ## Usage
 To perform the export, make sure that you have installed the following packages in your computer.
 - numpy (pip install numpy)
@@ -18,3 +20,10 @@ Set up your google account and get it ready for the use. You may need to visit [
 After the preparation, you just need to go to the directory and run the script. The inputs required are the band name, year, and the submission mode. These will be prompted on the screen. The available band names for selection are water, trees, grass, flooded_vegetation, crops, shrub_and_scrub, built, bare, and snow_and_ice. The year options are 2016 to the current year. The submission modes are either 'all' or 'part'. If you choose 'all', then the script will submit all 300+ tasks to the Google Earth Engine at once. On the other hand, the script can submit 10 tasks per 30 minutes when you choose 'part'.
 
 You can check the **Tasks** tab on the top right panel of the [code.earthengine.google.com](https://code.earthengine.google.com) for the status of the tasks. The rasters produced will be exported to `dynamic_world_yyyy` folder in your Google Drive.
+
+## Additional notes
+As the Dynamic World contains near real-time data, temporal aggregation is required to get data with more complete coverage. This aggregation can be performed per year by using mean(), median(), or any other statistical function. Median is preferred as it is less sensitive to outliers.
+
+![comparison](dynamic_world_built.png)
+
+Alternative way to perform the aggregation (and reducing resolution) is by finding the most probable class in the *label* band using mode().
