@@ -3,7 +3,7 @@ import pandas as pd
 import ee
 import time
 
-def acquiring(bounds, idx='', band='built', year='2018'):
+def acquiring(bounds, idx='', band='built', year='2018', stats='median'):
     '''
     Function to acquire dynamic world raster for a specific band,
     year, and rectangular area.
@@ -40,7 +40,11 @@ def acquiring(bounds, idx='', band='built', year='2018'):
              .filterBounds(region)
              .filterDate(date_start, date_end)
              .select(band))
-    image = imcol.reduce(ee.Reducer.mean()).multiply(200).uint8()
+    
+    if (stats == 'mean'): reducer = ee.Reducer.mean()
+    if (stats == 'median'): reducer = ee.Reducer.median()
+    
+    image = imcol.reduce(reducer).multiply(200).uint8()
     image = image.updateMask(image.gt(0))
     task = ee.batch.Export.image.toDrive(image=image,
                                          region=region,
