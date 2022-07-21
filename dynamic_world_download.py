@@ -22,12 +22,6 @@ def acquiring(bounds, idx='', band='built', year='2018', stats='median'):
              probability of a class multiplied by 200.
     '''
     
-    bands = ['water', 'trees', 'grass', 'flooded_vegetation', 'crops', 'shrub_and_scrub', 'built', 'bare', 'snow_and_ice']
-    if not(band in bands):
-        print("Check the band name.")
-        print("['water', 'trees', 'grass', 'flooded_vegetation', 'crops', 'shrub_and_scrub', 'built', 'bare', 'snow_and_ice']")
-        return
-    
     if type(year) != str:
         year = str(year)
         
@@ -39,13 +33,21 @@ def acquiring(bounds, idx='', band='built', year='2018', stats='median'):
     imcol = (ee.ImageCollection('GOOGLE/DYNAMICWORLD/V1')
              .filterBounds(region)
              .filterDate(date_start, date_end)
-             .select(band))
+             .select('label')
+            )
     
-    if (stats == 'mean'): reducer = ee.Reducer.mean()
-    if (stats == 'median'): reducer = ee.Reducer.median()
-    
-    image = imcol.reduce(reducer).multiply(200).uint8()
-    image = image.updateMask(image.gt(0))
+    mostProb = (imcol.reduce(ee.Reducer.mode())
+                .clip(region)
+                .setDefaultProjection({crs:'EPSG:4326', scale:10})
+                .reduceResolution({reducer:ee.Reducer.mode(), maxPixels:256})
+                .reproject({crs:'EPSG:4326', crsTransform:[0.00083333333, 0, 0, 0, -0.00083333333, 0]})
+               )
+
+    bands = ee.List.sequence(0, 8)
+    bandNames = ee.List(['water', 'trees', 'grass', 'flooded_vegetation', 'crops', 'shrub_and_scrub', 'built', 'bare', 'snow_and_ice'])
+    image = bands.map(lambda idx: mostProb.eq(ee.Image(idx)))
+    image = ee.ImageCollection(image).toBands().rename(bandNames).uint8()
+
     task = ee.batch.Export.image.toDrive(image=image,
                                          region=region,
                                          description=description,
