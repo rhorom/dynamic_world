@@ -3,16 +3,14 @@ import pandas as pd
 import ee
 import time
 
-def acquiring(bounds, idx='', band='built', year='2018', stats='median'):
+def acquiring(bounds, idx='', year='2018', output='binary'):
     '''
-    Function to acquire dynamic world raster for a specific band,
+    Function to acquire dynamic world raster for a specific
     year, and rectangular area.
     
     Input:
     bounds : list of geometry bounds [lon_min, lat_min, lon_max, lat_max]
     idx    : index or filename suffix
-    band   : band to extract. Alternative bands: water, trees, grass,
-             flooded_vegetation, crops, shrub_and_scrub, built, bare, snow_and_ice.
     year   : selected year (between 2016 to current year)
     
     Output:
@@ -22,13 +20,23 @@ def acquiring(bounds, idx='', band='built', year='2018', stats='median'):
              probability of a class multiplied by 200.
     '''
     
+    def reduceToMean(img, idx):
+        ima = (img.eq(ee.Image(ee.Number(idx).uint8()))
+               .reduceResolution(reducer=ee.Reducer.mean(), maxPixels=256)
+               .reproject(crs='EPSG:4326', crsTransform=[0.00083333333, 0, 0, 0, -0.00083333333, 0])
+               .multiply(25)
+              )
+        return ima
+        
     if type(year) != str:
         year = str(year)
         
     date_start = year + '-01-01'
     date_end = year + '-12-01'
-    description = 'dworld_%s_%s_%s'%(year, band, idx)
+    description = 'dworld_%s_%s'%(year, idx)
     region = ee.Geometry.BBox(bounds[0],bounds[1],bounds[2],bounds[3])
+    bands = ee.List.sequence(0, 8)
+    bandNames = ee.List(['water', 'trees', 'grass', 'flooded_vegetation', 'crops', 'shrub_and_scrub', 'built', 'bare', 'snow_and_ice'])
     
     imcol = (ee.ImageCollection('GOOGLE/DYNAMICWORLD/V1')
              .filterBounds(region)
@@ -36,25 +44,24 @@ def acquiring(bounds, idx='', band='built', year='2018', stats='median'):
              .select('label')
             )
     
-    mostProb = (imcol.reduce(ee.Reducer.mode())
-                .clip(region)
-                .setDefaultProjection({crs:'EPSG:4326', scale:10})
-                .reduceResolution({reducer:ee.Reducer.mode(), maxPixels:256})
-                .reproject({crs:'EPSG:4326', crsTransform:[0.00083333333, 0, 0, 0, -0.00083333333, 0]})
-               )
+    mostProb = imcol.reduce(ee.Reducer.mode()).clip(region).setDefaultProjection(crs='EPSG:4326', scale=10)
+    if (output == 'binary'):
+        mostProb = (mostProb
+                    .reduceResolution(reducer=ee.Reducer.mode(), maxPixels=256)
+                    .reproject(crs='EPSG:4326', crsTransform=[0.00083333333, 0, 0, 0, -0.00083333333, 0])
+                   )
+        image = bands.map(lambda idx: mostProb.eq(ee.Image(ee.Number(idx).uint8())))
+    else:
+        image = bands.map(lambda idx: reduceToMean(mostProb, idx))
 
-    bands = ee.List.sequence(0, 8)
-    bandNames = ee.List(['water', 'trees', 'grass', 'flooded_vegetation', 'crops', 'shrub_and_scrub', 'built', 'bare', 'snow_and_ice'])
-    image = bands.map(lambda idx: mostProb.eq(ee.Image(idx)))
     image = ee.ImageCollection(image).toBands().rename(bandNames).uint8()
-
     task = ee.batch.Export.image.toDrive(image=image,
                                          region=region,
                                          description=description,
                                          folder='dynamic_world_' + year,
                                          fileNamePrefix=description,
-                                         scale=100,
                                          maxPixels=1e10,
+                                         crsTransform=[0.00083333333, 0, 0, 0, -0.00083333333, 0],
                                          crs='EPSG:4326')
     task.start()
     print('Submitted task:', description)
@@ -62,17 +69,13 @@ def acquiring(bounds, idx='', band='built', year='2018', stats='median'):
     return task
 
 bands = ['water', 'trees', 'grass', 'flooded_vegetation', 'crops', 'shrub_and_scrub', 'built', 'bare', 'snow_and_ice']
-band = ''
 year = '2018'
 submission_mode = ''
 
-while not(band in bands):
-    band = input('Select one band (see spreadsheet): ')
-    
 year = input('Select year (2016-2021): ')
 
 while not(submission_mode in ['all', 'part', 'test']):
-    submission_mode = input('Submission mode (all, part, test): ')
+    submission_mode = input('Submission mode (all/part/test): ')
 
 #Authentication and initialisation of google earth engine python API
 #Sign in to google account and give essential authorisations
@@ -94,7 +97,7 @@ for i in range(nrow):
     bounds = tiles.bounds.values[i][1:-1].split(',')
     bounds = [float(a) for a in bounds]
     idx = tiles.ID.values[i]
-    t = acquiring(bounds, idx, year=year, band=band)
+    t = acquiring(bounds, idx, year=year, output='binary')
     tasks.append(t)
     
     if ((submission_mode == 'part') & (i%10 == 9)):
