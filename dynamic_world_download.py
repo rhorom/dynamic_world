@@ -79,7 +79,7 @@ while not(submission_mode in ['all', 'part', 'test']):
 
 #Authentication and initialisation of google earth engine python API
 #Sign in to google account and give essential authorisations
-ee.Authenticate()
+ee.Authenticate(auth_mode='notebook')
 ee.Initialize()
 
 tiles = pd.read_csv('globalTile100.csv')
